@@ -30,19 +30,17 @@ Both comments are live on the [demo repo](https://github.com/Hron-5/rigseal-demo
 
 ## Existing tools
 
-Several tools already make migrations safer, but each answers a different question. From closest to
-furthest:
+The closest tool is [django-migration-linter](https://github.com/David-Wobrock/django-migration-linter).
+It detects backward-incompatible migrations (new NOT NULL columns, dropped or renamed tables and columns),
+which is the question Rigseal asks, but for Django only. Prisma Migrate itself gives no warning: it turns a
+renamed field into a drop plus an add, and after a rollback `migrate status` still says the database is up
+to date.
 
-| Tool                                                                                                  | What it does                                                                                         | Why it doesn't answer "can base still run?"                                                                                    |
-| ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| [django-migration-linter](https://github.com/David-Wobrock/django-migration-linter)                   | Detects backward-incompatible migrations: NOT NULL columns, dropped or renamed tables and columns    | The same question, but for Django only.                                                                                        |
-| [prisma-drop-migration-warning](https://github.com/marketplace/actions/prisma-drop-migration-warning) | A GitHub Action that comments on the PR when a Prisma migration drops a table or column              | It warns on every drop, used or not, and misses other breaking changes such as a new required column.                          |
-| [pgfence](https://github.com/flvmnt/pgfence)                                                          | Reads Prisma (and other ORM) migrations and reports lock modes, risk levels and safe rewrite recipes | It checks whether a migration is safe to run, not whether the previous release still works after it.                           |
-| [Atlas `migrate lint`](https://atlasgo.io/lint/analyzers)                                             | Flags destructive and backward-incompatible changes, among many other checks                         | It judges the schema change itself, not what the last release's Prisma client reads and writes.                                |
-| [Squawk](https://github.com/sbdchd/squawk)                                                            | Lints Postgres migration SQL for risky patterns, mostly locks and slow rewrites                      | It judges the SQL on its own, without the previous release's code.                                                             |
-| [strong_migrations](https://github.com/ankane/strong_migrations)                                      | Stops dangerous Active Record migrations in development and explains the safe sequence               | Rails only.                                                                                                                    |
-| [pgroll](https://github.com/xataio/pgroll)                                                            | Applies migrations with expand/contract, so old and new schema versions run side by side             | It replaces how you apply migrations, with its own format, instead of checking the ones Prisma generates.                      |
-| Prisma Migrate                                                                                        | Generates the migration from `schema.prisma` and applies it                                          | It turns a renamed field into a drop plus an add, and after a rollback `migrate status` still says the database is up to date. |
+Other tools check something else. [prisma-drop-migration-warning](https://github.com/marketplace/actions/prisma-drop-migration-warning)
+warns on every drop, used or not. [pgfence](https://github.com/flvmnt/pgfence), [Squawk](https://github.com/sbdchd/squawk)
+and [Atlas](https://atlasgo.io/lint/analyzers) judge the migration itself, mostly whether it is safe to run.
+[strong_migrations](https://github.com/ankane/strong_migrations) is Rails only, and
+[pgroll](https://github.com/xataio/pgroll) replaces how migrations are applied.
 
 What Rigseal adds:
 
@@ -53,8 +51,10 @@ What Rigseal adds:
 - **It fails closed.** SQL it can't parse or doesn't understand is a finding, never a pass.
 - **The verdict is signed.** A deploy can check who signed it, for which commit, and what it says.
 
-It doesn't replace a lock linter: Squawk or pgfence next to Rigseal covers both "is it safe to run?" and
-"is it safe to roll back?".
+**Use it with pgfence.** Rigseal doesn't check locks or long rewrites. pgfence reads Prisma migrations
+and reports lock modes, risk levels and safe rewrite recipes, so running both on the same pull request
+answers "is it safe to run?" and "is it safe to roll back?". Prisma's docs have a
+[pgfence guide](https://www.prisma.io/docs/guides/integrations/pgfence) for CI.
 
 ## How it works
 
